@@ -1,0 +1,381 @@
+---
+title: "stressed_out_cities"
+output: html_document
+---
+
+# Goal of the project
+For a potential blog post for my internship, I was tasked with exploring the relationship between environment (structural and physical) and the number of patients with acne. This is the analysis I completed, using a created economic burden index using PCA. All the patient information is fake due to it being proprietary/private - which of course affects the analysis.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+```
+
+# Census Block Data
+Source: https://www.safegraph.com/open-census-data
+Dataset of demographic data on the census block level which I downloaded to my computer. This is used to create an economic burden index based on the following:
+1. Long commute times
+2. Unemployment
+3. Home price to income ratio
+4. Percent uninsured population
+
+# Metric: Long commute times
+
+```{r}
+cbg_b08 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b08.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+# Census block group data related to commute times
+
+travel_time = data.frame(cbg_b08$census_block_group) 
+colnames(travel_time) = "census_block_group"
+travel_time$total = cbg_b08$B08303e1
+travel_time$min_40_44 = cbg_b08$B08303e10
+travel_time$min_45_59 = cbg_b08$B08303e11
+travel_time$min_60_89 = cbg_b08$B08303e12
+travel_time$min_M90 = cbg_b08$B08303e13
+travel_time$min_L5 = cbg_b08$B08303e2
+travel_time$min_5_9 = cbg_b08$B08303e3
+travel_time$min_10_14 = cbg_b08$B08303e4
+travel_time$min_15_19 = cbg_b08$B08303e5
+travel_time$min_20_24 = cbg_b08$B08303e6
+travel_time$min_25_29 = cbg_b08$B08303e7
+travel_time$min_30_34 = cbg_b08$B08303e8
+travel_time$min_35_39 = cbg_b08$B08303e9
+
+```
+
+```{r}
+# Metric created - % of population w >= 45 minutes commute
+travel_time = travel_time %>%
+  mutate(M45_travel_time = (min_45_59 + min_60_89 +  min_M90),
+         perc_M45 = M45_travel_time / total)
+```
+
+# Metric: Unemployment
+
+```{r}
+cbg_b23 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b23.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+# Census block group data related to unemployment
+no_work = data.frame(cbg_b23$census_block_group)
+colnames(no_work) = "census_block_group"
+
+no_work$total = cbg_b23$B23027e1
+no_work$y20_24 = cbg_b23$B23027e11
+no_work$y25_44 = cbg_b23$B23027e16
+no_work$y45_54 = cbg_b23$B23027e21
+no_work$y55_64 = cbg_b23$B23027e26
+no_work$y65_69 = cbg_b23$B23027e31
+no_work$y70 = cbg_b23$B23027e36
+no_work$y16_19 = cbg_b23$B23027e6
+```
+
+
+```{r}
+# Metric created - % of population who did not work in the past 12 months
+
+no_work = mutate(no_work,
+                 perc_no_work = (y20_24 + y25_44 + y45_54 + y55_64 + y65_69 + y70 + y16_19) / total )
+
+```
+
+
+# Metric: Health Insurance Coverage
+```{r}
+cbg_b27 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b27.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+# Census block group data related to health insurance
+health_insur = data.frame(cbg_b27$census_block_group)
+colnames(health_insur) = "census_block_group"
+
+health_insur$total = cbg_b27$B27010e1
+health_insur$Y18 = cbg_b27$B27010e17
+health_insur$Y18_34 = cbg_b27$B27010e33
+health_insur$Y35_64 = cbg_b27$B27010e50
+health_insur$Y65 = cbg_b27$B27010e66
+```
+
+```{r}
+# Metric created - % of population that is uninsured
+health_insur = mutate(health_insur, 
+                      perc_no_healthinsur = (Y18 + Y18_34 + Y35_64 + Y65) / total)
+```
+
+#Metric: >30% of income going to rent 
+
+```{r}
+cbg_b25 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b25.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+# Census block group data related to income rent ratio
+income_rent = data.frame(cbg_b25$census_block_group)
+colnames(income_rent) = "census_block_group"
+
+income_rent$total = cbg_b25$B25070e1
+income_rent$G50 = cbg_b25$B25070e10
+income_rent$I30_34 = cbg_b25$B25070e7
+income_rent$I35_39 = cbg_b25$B25070e8
+income_rent$I40_49 = cbg_b25$B25070e9
+
+```
+
+```{r}
+# Metric created - % of population that has >30% of income going to rent
+income_rent = mutate(income_rent,
+                     rent_g30 = (G50 + I30_34 + I35_39 + I40_49) / total)
+
+```
+
+
+# Combining metrics into one dataframe
+
+```{r}
+health_insur_total = select(health_insur, 
+                            census_block_group, perc_no_healthinsur)
+income_rent_total = select(income_rent, 
+                           census_block_group, rent_g30)
+no_work_total = select(no_work, 
+                       census_block_group, perc_no_work)
+travel_time_total = select(travel_time, 
+                           census_block_group, perc_M45)
+
+```
+
+```{r}
+eburden_ctract = full_join(health_insur_total, income_rent_total, by = c("census_block_group" = "census_block_group")) %>%
+  full_join(., no_work_total, by = c("census_block_group" = "census_block_group")) %>%
+  full_join(., travel_time_total, by = c("census_block_group" = "census_block_group"))
+
+```
+
+```{r}
+eburden_ctract[is.na(eburden_ctract) == TRUE] = 0
+```
+
+# Creation of a economic burden index - principal components analysis
+```{r}
+scaled_df = eburden_ctract %>%
+  select(perc_no_healthinsur, rent_g30, perc_no_work, perc_M45)
+
+apply(scaled_df, 2, var, na.rm = TRUE) # Computing the variance of each variable
+
+# Do not need to scale because because every variable in the dataset has the same units. 
+```
+
+```{r}
+eburden.cov = cov(scaled_df) #Covariance matrix
+eburden.eigen = eigen(eburden.cov) #Eigenvalues
+str(eburden.eigen)
+```
+
+```{r}
+phi = eburden.eigen$vectors[,1:2]
+phi = -phi #Flipping to a positive direction for interpretation purposes. 
+```
+
+```{r}
+row.names(phi) = c("perc_no_healthinsur", "rent_g30", "perc_no_work", "perc_M45")
+colnames(phi) = c("PC1", "PC2")
+phi
+# For principle component 1, we see there is loading on all four variables which is expected (60% of variance is explained by the PC as shown below) and all of the loadings are in the same directions.
+```
+
+```{r}
+round(eburden.eigen$values / sum(eburden.eigen$values) , 2)
+# 60% of variance is explained by the first principal compenent 
+
+```
+
+```{r}
+# Calculating principal components score to obtain the values of the components for each observation 
+PC1 = as.matrix(scaled_df) %*% phi[,1]
+ecburden_index = data.frame(census_block_group = eburden_ctract$census_block_group, PC1)
+
+# Note highest score is rent g30 - so reflecting mostly areas where the rent is greater than 30% of income. 
+```
+
+
+```{r}
+# Notes: Census block group needs 12 digits & census tract needs 11 digits. Census block group code is just a subset of the census tract
+
+# When loading the data, the leading zeros were dropped. This for loop adds the zeros back in. 
+
+ecburden_index$census_block_long = NA
+
+for(i in 1:nrow(ecburden_index)){
+  if(nchar(ecburden_index[i,1])==11){
+    ecburden_index[i,3] = paste("0",ecburden_index[i,1], sep = "")
+  } else {
+    ecburden_index[i,3] = ecburden_index[i,1]
+  }
+}
+
+```
+
+```{r}
+ecburden_index$census_tract = substr(ecburden_index$census_block_long, start = 1, stop = 11)
+
+```
+
+# Customers with acne / clogged pores by zipcode
+```{r}
+user_zipcodes = read.csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/skincare_zipcodes.csv", stringsAsFactors = FALSE, na.strings = c("", NA))
+
+```
+
+```{r}
+# Randomly creating number of customers by zipcode 
+number_customers = round(runif(25936, min = 1, max = 2000), digits = 0)
+```
+
+```{r}
+user_zipcodes$number_customers = number_customers
+user_zipcodes = user_zipcodes[,2:3]
+
+```
+
+# Crosswalk for zipcode to census tract
+```{r}
+# This is a crosswalk I obtained from dataworld 
+zip_tract = read.csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/ZIP_TRACT_122015.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+# Converting to characters for join later
+zip_tract$ZIP = as.character(zip_tract$ZIP)
+
+```
+
+```{r}
+# There are zipcodes where the leading zeros were dropped. Creating quick for loop to add them back! 
+
+zip_tract$df_zip_long = NA
+
+for(i in 1:nrow(zip_tract)){
+  if(nchar(zip_tract[i,1])==3){
+    zip_tract[i,7] = paste("00",zip_tract[i,1], sep = "")
+  } else if(nchar(zip_tract[i,1])==4) {
+    zip_tract[i,7] = paste("0",zip_tract[i,1], sep = "")
+  } else {
+    zip_tract[i,7] = zip_tract[i,1]
+  }
+}
+```
+
+```{r}
+# There are also tracts where the leading zeroes were dropped. Creating quick for loop to add these back as well. 
+zip_tract$tract_long = NA
+
+for(i in 1:nrow(zip_tract)){
+  if(nchar(zip_tract[i,2]) == 9){
+    zip_tract[i,8] = paste("00", zip_tract[i,2], sep ="")
+  } else if(nchar(zip_tract[i,2]) == 10) {
+     zip_tract[i,8] = paste("0", zip_tract[i,2], sep ="")
+  } else {
+    zip_tract[i,8] = zip_tract[i,2]
+  }
+}
+
+
+```
+
+```{r}
+# Data frame with nunber of pts, zipcode, and census tract
+acne_ctract = left_join(user_zipcodes, zip_tract, by = c("zipcode_abbrev" = "df_zip_long")) %>%
+  select(zipcode_abbrev, number_customers, tract_long)
+
+acne_ctract = filter(acne_ctract, is.na(tract_long) == FALSE)
+
+```
+
+
+# Adding economic burden index to users by ctract
+```{r}
+acne_ctract$tract_long = as.character(acne_ctract$tract_long)
+ecburden_index$census_tract = as.character(ecburden_index$census_tract)
+
+str(acne_ctract)
+str(ecburden_index)
+```
+
+```{r}
+acne_ecburden = left_join(acne_ctract, ecburden_index, by = c("tract_long" = "census_tract"))
+```
+
+```{r}
+# How many actually matched?
+sum(is.na(acne_ecburden$PC1) == TRUE) / nrow(acne_ecburden) * 100
+
+#0.027% did not match
+
+```
+
+```{r}
+# Zipcodes are showing up multiple times - this is because multiple census tracts match to one zipcode. Thus, recalculating economic burden index as the mean of all economic burden PC scores
+
+acne_ecburden = acne_ecburden %>%
+  group_by(zipcode_abbrev, number_customers) %>%
+  summarise(mean_ecburden_index = mean(PC1, na.rm = TRUE))
+```
+
+
+# Statistical analysis
+
+```{r}
+glm_ecburden = glm(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, family = poisson, data = acne_ecburden)
+
+summary(glm_ecburden)
+
+exp(glm_ecburden$coefficients)
+
+# In this fake dataset of patients, a one unit increase in Economic Burden Index score, is associated with an increase of 1.004 in the number of acne patients at the zip code level (at a statistical significance level of p-value <.05)
+
+```
+
+```{r}
+# Does this model fit? Based on overdispersion - No
+
+# Overdispersion: There is overdispersion if significantly greater than 1
+pchisq(glm_ecburden$deviance, glm_ecburden$df.residual, lower.tail=F)
+
+# The above p-value suggests that a residual deviance as large or larger than what we observed under the model in is highly unlikely - so the model is most likely not a good fit. 
+```
+
+# Because of overdispersion trying a negative binomial model 
+
+```{r}
+glm_ecburden_nb = MASS::glm.nb(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, data = acne_ecburden)
+
+summary(glm_ecburden_nb)
+
+exp(glm_ecburden_nb$coefficients)
+logLik(glm_ecburden_nb)
+
+# In this fake dataset, a one unit increase in Economic Burden Index score, is associated with an increase of 1.004 in the number of acne patients at the zip code level (however, it is not statistically significant at a level of p-value <.05)
+
+```
+
+# Assessing better model using BIC
+Notes: BIC utilized b/c can be used to compare different models, even models that are non-nested.
+```{r}
+BIC(glm_ecburden_nb) # Negative binomial model
+BIC(glm_ecburden) # poisson regression model 
+
+# Negative binomial has the lower BIC and thus is the model that will be used in interpretation. 
+
+# For one unit increase in the Economic Burden Index score, the expected log count of the number of acne patients increases by 0.004 (not statistically signiifcant). 
+```
+
+
