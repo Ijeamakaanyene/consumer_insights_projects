@@ -1,14 +1,11 @@
 ---
-title: "stressed_out_cities"
+title: "economic burden analysis"
 output: html_document
 ---
-
-# Goal of the project
-For a potential blog post for my internship, I was tasked with exploring the relationship between environment (structural and physical) and the number of patients with acne. This is the analysis I completed, using a created economic burden index using PCA. All the patient information is fake due to it being proprietary/private - which of course affects the analysis.
-
 ```{r}
 library(dplyr)
 library(ggplot2)
+library(readr)
 
 ```
 
@@ -23,7 +20,7 @@ Dataset of demographic data on the census block level which I downloaded to my c
 # Metric: Long commute times
 
 ```{r}
-cbg_b08 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b08.csv", stringsAsFactors = FALSE)
+cbg_b08 = read_csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b08.csv")
 
 ```
 
@@ -58,7 +55,7 @@ travel_time = travel_time %>%
 # Metric: Unemployment
 
 ```{r}
-cbg_b23 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b23.csv", stringsAsFactors = FALSE)
+cbg_b23 = read_csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b23.csv")
 
 ```
 
@@ -89,7 +86,7 @@ no_work = mutate(no_work,
 
 # Metric: Health Insurance Coverage
 ```{r}
-cbg_b27 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b27.csv", stringsAsFactors = FALSE)
+cbg_b27 = read_csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b27.csv")
 ```
 
 ```{r}
@@ -113,7 +110,7 @@ health_insur = mutate(health_insur,
 #Metric: >30% of income going to rent 
 
 ```{r}
-cbg_b25 = read.csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b25.csv", stringsAsFactors = FALSE)
+cbg_b25 = read_csv("/Users/ijeamakaanyene/curology/environ_data/Census Block Data/safegraph_open_census_data/data/cbg_b25.csv")
 
 ```
 
@@ -170,7 +167,7 @@ scaled_df = eburden_ctract %>%
 
 apply(scaled_df, 2, var, na.rm = TRUE) # Computing the variance of each variable
 
-# Do not need to scale because because every variable in the dataset has the same units. 
+scaled_df = apply(scaled_df, 2, scale)
 ```
 
 ```{r}
@@ -188,12 +185,12 @@ phi = -phi #Flipping to a positive direction for interpretation purposes.
 row.names(phi) = c("perc_no_healthinsur", "rent_g30", "perc_no_work", "perc_M45")
 colnames(phi) = c("PC1", "PC2")
 phi
-# For principle component 1, we see there is loading on all four variables which is expected (60% of variance is explained by the PC as shown below) and all of the loadings are in the same directions.
+# For principle component 1, we see there is loading on all four variables which is expected and all of the loadings are in the same directions.
 ```
 
 ```{r}
 round(eburden.eigen$values / sum(eburden.eigen$values) , 2)
-# 60% of variance is explained by the first principal compenent 
+# 30% of variance is explained by the first principal compenent which is impacted with socioeconomic indices
 
 ```
 
@@ -202,29 +199,17 @@ round(eburden.eigen$values / sum(eburden.eigen$values) , 2)
 PC1 = as.matrix(scaled_df) %*% phi[,1]
 ecburden_index = data.frame(census_block_group = eburden_ctract$census_block_group, PC1)
 
-# Note highest score is rent g30 - so reflecting mostly areas where the rent is greater than 30% of income. 
+# Note highest score are rent g30, no health insurance, and percent no work, so index is reflecting areas where that is the worst. 
 ```
-
 
 ```{r}
 # Notes: Census block group needs 12 digits & census tract needs 11 digits. Census block group code is just a subset of the census tract
 
-# When loading the data, the leading zeros were dropped. This for loop adds the zeros back in. 
+# Confirming if leading zeros have been dropped
+ecburden_index$length_cblock = sapply(ecburden_index[,1], nchar)
+filter(ecburden_index, length_cblock < 12) # none have been dropped 
 
-ecburden_index$census_block_long = NA
-
-for(i in 1:nrow(ecburden_index)){
-  if(nchar(ecburden_index[i,1])==11){
-    ecburden_index[i,3] = paste("0",ecburden_index[i,1], sep = "")
-  } else {
-    ecburden_index[i,3] = ecburden_index[i,1]
-  }
-}
-
-```
-
-```{r}
-ecburden_index$census_tract = substr(ecburden_index$census_block_long, start = 1, stop = 11)
+ecburden_index$census_tract = substr(ecburden_index[,1], start = 1, stop = 11)
 
 ```
 
@@ -241,20 +226,14 @@ number_customers = round(runif(25936, min = 1, max = 2000), digits = 0)
 
 ```{r}
 user_zipcodes$number_customers = number_customers
-user_zipcodes = user_zipcodes[,2:3]
+user_zipcodes = user_zipcodes[,-1]
 
 ```
 
 # Crosswalk for zipcode to census tract
 ```{r}
 # This is a crosswalk I obtained from dataworld 
-zip_tract = read.csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/ZIP_TRACT_122015.csv", stringsAsFactors = FALSE)
-
-```
-
-```{r}
-# Converting to characters for join later
-zip_tract$ZIP = as.character(zip_tract$ZIP)
+zip_tract = read_csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/ZIP_TRACT_122015.csv")
 
 ```
 
@@ -300,7 +279,6 @@ acne_ctract = filter(acne_ctract, is.na(tract_long) == FALSE)
 
 ```
 
-
 # Adding economic burden index to users by ctract
 ```{r}
 acne_ctract$tract_long = as.character(acne_ctract$tract_long)
@@ -334,26 +312,18 @@ acne_ecburden = acne_ecburden %>%
 # Statistical analysis
 
 ```{r}
-glm_ecburden = glm(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, family = poisson, data = acne_ecburden)
+glm_ecburden = glm(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, family = "poisson", data = acne_ecburden)
 
 summary(glm_ecburden)
 
 exp(glm_ecburden$coefficients)
 
-# In this fake dataset of patients, a one unit increase in Economic Burden Index score, is associated with an increase of 1.004 in the number of acne patients at the zip code level (at a statistical significance level of p-value <.05)
-
+# In this fake dataset of patients, a one unit increase in Economic Burden Index score, is associated with an increase of 0.99 in the number of acne patients at the zip code level 
 ```
 
-```{r}
-# Does this model fit? Based on overdispersion - No
+With Poission Regression models you need to worry about overdispersion where the variance is much larger than the mean. In this model, there isn't overdispersion because of the randomly generated data. But let's pretend there is and switch to a negative binomial model. 
 
-# Overdispersion: There is overdispersion if significantly greater than 1
-pchisq(glm_ecburden$deviance, glm_ecburden$df.residual, lower.tail=F)
-
-# The above p-value suggests that a residual deviance as large or larger than what we observed under the model in is highly unlikely - so the model is most likely not a good fit. 
-```
-
-# Because of overdispersion trying a negative binomial model 
+# negative binomial model 
 
 ```{r}
 glm_ecburden_nb = MASS::glm.nb(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, data = acne_ecburden)
@@ -361,21 +331,11 @@ glm_ecburden_nb = MASS::glm.nb(acne_ecburden$number_customers ~ acne_ecburden$me
 summary(glm_ecburden_nb)
 
 exp(glm_ecburden_nb$coefficients)
-logLik(glm_ecburden_nb)
+exp(confint(glm_ecburden_nb))
 
-# In this fake dataset, a one unit increase in Economic Burden Index score, is associated with an increase of 1.004 in the number of acne patients at the zip code level (however, it is not statistically significant at a level of p-value <.05)
 
+# In this fake dataset, a one unit increase in Economic Burden Index score, is associated with an increase of 0.99 in the number of acne patients at the zip code level (however, the confidence interval includes the null thus it is not statistical significant)
 ```
 
-# Assessing better model using BIC
-Notes: BIC utilized b/c can be used to compare different models, even models that are non-nested.
-```{r}
-BIC(glm_ecburden_nb) # Negative binomial model
-BIC(glm_ecburden) # poisson regression model 
-
-# Negative binomial has the lower BIC and thus is the model that will be used in interpretation. 
-
-# For one unit increase in the Economic Burden Index score, the expected log count of the number of acne patients increases by 0.004 (not statistically signiifcant). 
-```
-
+Another option is to calculate the Poisson Regression with Robust Standard Errors. But this was not done in this analysis. 
 
