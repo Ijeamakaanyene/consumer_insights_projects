@@ -77,7 +77,6 @@ no_work$y16_19 = cbg_b23$B23027e6
 
 ```{r}
 # Metric created - % of population who did not work in the past 12 months
-
 no_work = mutate(no_work,
                  perc_no_work = (y20_24 + y25_44 + y45_54 + y55_64 + y65_69 + y70 + y16_19) / total )
 
@@ -190,23 +189,28 @@ phi
 
 ```{r}
 round(eburden.eigen$values / sum(eburden.eigen$values) , 2)
-# 30% of variance is explained by the first principal compenent which is impacted with socioeconomic indices
-
+# 32% of variance is explained by the first principal compenent which is on par with socioeconomic indices
 ```
 
 ```{r}
 # Calculating principal components score to obtain the values of the components for each observation 
 PC1 = as.matrix(scaled_df) %*% phi[,1]
-ecburden_index = data.frame(census_block_group = eburden_ctract$census_block_group, PC1)
+ecburden_index = data.frame(census_block_group = eburden_ctract$census_block_group, PC1, stringsAsFactors = FALSE)
 
 # Note highest score are rent g30, no health insurance, and percent no work, so index is reflecting areas where that is the worst. 
+```
+
+```{r}
+# Changing structure of census block group
+eburden_ctract$census_block_group = as.character(eburden_ctract$census_block_group)
+str(eburden_ctract$census_block_group)
 ```
 
 ```{r}
 # Notes: Census block group needs 12 digits & census tract needs 11 digits. Census block group code is just a subset of the census tract
 
 # Confirming if leading zeros have been dropped
-ecburden_index$length_cblock = sapply(ecburden_index[,1], nchar)
+ecburden_index$length_cblock = apply(ecburden_index[1], 1, nchar)
 filter(ecburden_index, length_cblock < 12) # none have been dropped 
 
 ecburden_index$census_tract = substr(ecburden_index[,1], start = 1, stop = 11)
@@ -215,13 +219,14 @@ ecburden_index$census_tract = substr(ecburden_index[,1], start = 1, stop = 11)
 
 # Customers with acne / clogged pores by zipcode
 ```{r}
-user_zipcodes = read.csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/skincare_zipcodes.csv", stringsAsFactors = FALSE, na.strings = c("", NA))
+user_zipcodes = read_csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/skincare_zipcodes.csv")
 
 ```
 
 ```{r}
 # Randomly creating number of customers by zipcode 
-number_customers = round(runif(25936, min = 1, max = 2000), digits = 0)
+set.seed(11717)
+number_customers = round(runif(nrow(user_zipcodes), min = 1, max = 2000), digits = 0)
 ```
 
 ```{r}
@@ -232,25 +237,24 @@ user_zipcodes = user_zipcodes[,-1]
 
 # Crosswalk for zipcode to census tract
 ```{r}
-# This is a crosswalk I obtained from dataworld 
+# This is a crosswalk of zipcodes to census tract obtained from dataworld 
 zip_tract = read_csv("/Users/ijeamakaanyene/curology/environ_data/Datasets/ZIP_TRACT_122015.csv")
 
 ```
 
 ```{r}
-# There are zipcodes where the leading zeros were dropped. Creating quick for loop to add them back! 
+# Zipcodes were leaded as characters, but confirming they are at the correct length
 
-zip_tract$df_zip_long = NA
+zip_tract$length_zip = apply(zip_tract[1], 1, nchar)
+nrow(filter(zip_tract, length_zip < 5)) # Returned 0 so no zeros dropped
+```
 
-for(i in 1:nrow(zip_tract)){
-  if(nchar(zip_tract[i,1])==3){
-    zip_tract[i,7] = paste("00",zip_tract[i,1], sep = "")
-  } else if(nchar(zip_tract[i,1])==4) {
-    zip_tract[i,7] = paste("0",zip_tract[i,1], sep = "")
-  } else {
-    zip_tract[i,7] = zip_tract[i,1]
-  }
-}
+```{r}
+# Checking whether there are census tracts where the leading zeroes were dropped. 
+zip_tract$length_tract = apply(zip_tract[2], 1, nchar)
+
+nrow(filter(zip_tract, length_tract < 11)) 
+# 26,704 rows that are missing zeros, so need to add them back!
 ```
 
 ```{r}
@@ -259,11 +263,13 @@ zip_tract$tract_long = NA
 
 for(i in 1:nrow(zip_tract)){
   if(nchar(zip_tract[i,2]) == 9){
-    zip_tract[i,8] = paste("00", zip_tract[i,2], sep ="")
+    zip_tract[i,9] = paste("00", zip_tract[i,2], sep ="")
+    
   } else if(nchar(zip_tract[i,2]) == 10) {
-     zip_tract[i,8] = paste("0", zip_tract[i,2], sep ="")
+     zip_tract[i,9] = paste("0", zip_tract[i,2], sep ="")
+     
   } else {
-    zip_tract[i,8] = zip_tract[i,2]
+    zip_tract[i,9] = zip_tract[i,2]
   }
 }
 
@@ -272,7 +278,7 @@ for(i in 1:nrow(zip_tract)){
 
 ```{r}
 # Data frame with nunber of pts, zipcode, and census tract
-acne_ctract = left_join(user_zipcodes, zip_tract, by = c("zipcode_abbrev" = "df_zip_long")) %>%
+acne_ctract = left_join(user_zipcodes, zip_tract, by = c("zipcode_abbrev" = "ZIP")) %>%
   select(zipcode_abbrev, number_customers, tract_long)
 
 acne_ctract = filter(acne_ctract, is.na(tract_long) == FALSE)
@@ -284,8 +290,8 @@ acne_ctract = filter(acne_ctract, is.na(tract_long) == FALSE)
 acne_ctract$tract_long = as.character(acne_ctract$tract_long)
 ecburden_index$census_tract = as.character(ecburden_index$census_tract)
 
-str(acne_ctract)
-str(ecburden_index)
+str(acne_ctract$tract_long)
+str(ecburden_index$census_tract)
 ```
 
 ```{r}
@@ -308,34 +314,48 @@ acne_ecburden = acne_ecburden %>%
   summarise(mean_ecburden_index = mean(PC1, na.rm = TRUE))
 ```
 
-
-# Statistical analysis
+# Review Variables
+Even though the number of customers is randomly generated numbers, it is still good habit to plot your variables to better understand and identify any potential issues or interesting nuances!
 
 ```{r}
-glm_ecburden = glm(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, family = "poisson", data = acne_ecburden)
+ggplot(acne_ecburden, aes(y = number_customers, x = mean_ecburden_index)) + geom_point()
+
+# Well this confirms the random number generator worked correctly. There is one zipcode with quite a high economic burden index (near 4) and 11 zipcodes with quite low economic burden index (less than -3). Most zipcodes fall between -2 and 2 for the index. 
+```
+
+# Regression Models
+
+```{r}
+glm_ecburden = glm(number_customers ~ mean_ecburden_index, family = "poisson", data = acne_ecburden)
 
 summary(glm_ecburden)
-
-exp(glm_ecburden$coefficients)
-
-# In this fake dataset of patients, a one unit increase in Economic Burden Index score, is associated with an increase of 0.99 in the number of acne patients at the zip code level 
 ```
 
-With Poission Regression models you need to worry about overdispersion where the variance is much larger than the mean. In this model, there isn't overdispersion because of the randomly generated data. But let's pretend there is and switch to a negative binomial model. 
-
-# negative binomial model 
+In Poisson Regression models, when using them to calculate risk ratios you often have to be concerned with overdispersion where the variance is much larger than the mean. SO lets check for overdispersion by calculating the coefficients and confidence interval with and without robust standard errors. 
 
 ```{r}
-glm_ecburden_nb = MASS::glm.nb(acne_ecburden$number_customers ~ acne_ecburden$mean_ecburden_index, data = acne_ecburden)
-
-summary(glm_ecburden_nb)
-
-exp(glm_ecburden_nb$coefficients)
-exp(confint(glm_ecburden_nb))
-
-
-# In this fake dataset, a one unit increase in Economic Burden Index score, is associated with an increase of 0.99 in the number of acne patients at the zip code level (however, the confidence interval includes the null thus it is not statistical significant)
+# Poisson Regression 
+coef_pois = coef(glm_ecburden)
+ci_pois = confint.default(glm_ecburden) 
+exp(cbind(coef_pois, ci_pois))[2,]
 ```
 
-Another option is to calculate the Poisson Regression with Robust Standard Errors. But this was not done in this analysis. 
+```{r}
+# Poisson Regression with Robust Standard Errors
+coef_robust = doBy::esticon(glm_ecburden, diag(length(coef(glm_ecburden))))
+exp_robust = exp(cbind(coef_robust$Estimate, coef_robust$Lower, coef_robust$Upper))
+rownames(exp_robust) = names(coef(glm_ecburden))
+colnames(exp_robust) = c("RR", "95% LL", "95% UL")
+
+exp_robust[2,]
+
+```
+
+
+Comparing the estimates and confidence intervals calculated with and without robust errors, the confidence intervals are approximately the same pointing towards the fact that there is no overdispersion. Thus for a one unit change in the economic burden index, the risk of acne changes by 0.999. Essentially the risk decreases, with an increase in economic burden index. However, 0.999 is close to null that I would feel comfortable asying there is minimal to no association between number of acne patients and economic burden index. 
+
+Some concerns/ acknowledgements with this analysis:
+- Each subject is not followed for the same amount of time. Typically you would account for varying lengths of observation time in the model. Thus the estimates is biased. But - its fake data. 
+
+
 
