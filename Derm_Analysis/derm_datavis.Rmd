@@ -1,0 +1,981 @@
+---
+title: "Dermatologist_datavis"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+derm_list = read.csv(here::here("Datasets/dermatologistList.csv", stringsAsFactors = FALSE))
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+```
+
+# Reviewing and cleaning data
+
+```{r}
+df_derm = derm_list %>%
+  select(id, fullName, street, city, state, zipcode)
+
+str(df_derm)
+```
+
+
+# How complete is this data?
+
+```{r}
+# How many NAs are in each of the columns
+sum(is.na(df_derm$id))
+sum(is.na(df_derm$fullName))
+# The above does not have missing data
+
+N = nrow(df_derm)
+
+
+sum(is.na(df_derm$street))/N
+sum(is.na(df_derm$city))/ N
+sum(is.na(df_derm$state))/ N
+sum(is.na(df_derm$zipcode)) / N
+# No more than ~2% of the data missing for the above columns. Which seems okay. 
+```
+
+
+```{r}
+# Creating new zip code variable that only have first five digits. 
+df_derm$zip_abbrev = substr(df_derm$zipcode, start = 1, stop = 5)
+
+top_zip_codes = df_derm %>%
+  group_by(zip_abbrev) %>%
+  summarise(counts = n())
+
+top_n(top_zip_codes, n = 10)
+
+# Top zipcodes are Omaha, Nebraska; Cass County, North Dakota, somewhere in Minnesota. 
+# Highly unlikely. So definitely some dupes in here. 
+```
+
+
+```{r}
+# head(df_derm)
+derm_deduped = unique(df_derm[,2:7]) # Removing duplicates!
+```
+
+```{r}
+derm_clean = derm_deduped
+
+```
+
+```{r}
+(nrow(df_derm) - nrow(derm_deduped) )
+#1,259,112 removed. This may be high and a little concerning, that only 10,671 dermatologist left
+# NVM! According to IMS health there are an estimated 9,600 dermatologists in the US. So this seems fairly reasonable. 
+
+```
+
+
+```{r}
+top_zip_codes = derm_deduped %>%
+  group_by(zip_abbrev) %>%
+  summarise(counts = n()) %>%
+  top_n(n = 10)
+
+top_zip_codes
+
+top_cities = derm_deduped %>%
+  group_by(city) %>%
+  summarise(counts = n()) %>%
+  top_n(n = 10)
+
+top_cities
+# Top make a bit more sense and are major metro areas!
+```
+
+```{r}
+# Reviewing NAs - 282 cities and zipcodes
+
+filter(derm_deduped, is.na(derm_deduped$zip_abbrev) == TRUE, is.na(derm_deduped$street) == FALSE) # Only reviewing individuals who also have street adresses because we cannot identify them with only a name
+
+# Researched 1 addresses for every 10 address and all were possibly abroad (a lot in Canada, some France). Making executive decision to remove all NAs for zipcodes. 
+
+```
+
+
+```{r}
+derm_clean = filter(derm_clean, is.na(derm_clean$zip_abbrev) == FALSE)
+derm_clean = filter(derm_clean, is.na(derm_clean$city) == FALSE)
+# Left with 10388 providers
+```
+
+There are still some providers with addresses and other random things in the city column. Will review these and see if they can be fixed!
+```{r}
+remove_providers = c(grep("^Derm", derm_clean$city, ignore.case = TRUE), grep("^[:0-9:]", derm_clean$city, ignore.case = TRUE), grep("[:0-9:]", derm_clean$city, ignore.case = TRUE))
+
+```
+
+```{r}
+# Reviewing to confirm that no one was erroneously flagged!
+#derm_deduped[remove_providers, ]
+
+# Many of these can be fixed doing quick research! 
+# Reminder order is: street, city, state, zipcode, zip_abbrev
+
+derm_clean[2960, ] = c("Robert J. Willard MD, FAAD", "920 Lawn Avenue Summit Bldg.", "Sellersville", "PA", "18960", "18960")
+derm_clean[9090, ] = c("Toni C. Stockton MD, FAAD", "16611 S 40th St #100", "Phoenix", "AZ", "85048", "85048")
+derm_clean[3012, ] = c("Regis W. McHugh MD, FAAD", "419 W Pittsburgh St", "Greensburg", "PA", "15601", "15601")
+derm_clean[3461, ] = c("Jeanie C. Leddon MD, PhD, FAAD", "1140 W S Boulder Rd Ste 202", "Lafayette", "CO", "80026", "80026")
+derm_clean[3814, ] = c("Mitchel Paul Goldman MD, FAAD", "9339 Genesee Ave Ste 300", "San Diego", "CA", "92121", "92121")
+derm_clean[4808, ] = c("Victor R. Michalak MD, FAAD", "295 NE Gilman Blvd Ste 101", "Issaquah", "WA", "98027", "98027")
+derm_clean[7127, ] = c("Eric J. Thomas MD, FAAD", "11 S Main St", "Middletown", "CT", "06457", "06457")
+derm_clean[8635, ] = c("Charles E. Crutchfield MD, FAAD", "1185 Town Centre Dr #101", "Eagan", "MN", "55123", "55123")
+derm_clean[8966, ] = c("Debra L. Chernosky MD, FAAD", "4646 Wild Indigo St #100", "Houston", "TX", "77027", "77027")
+derm_clean[9146, ] = c("Peter P. Rullan MD, FAAD", "256 Landis Ave Fl 3", "Chula Vista", "CA", "91910","91910")
+
+derm_clean[remove_providers, ]
+
+```
+
+```{r}
+# Erroneous state names:
+#, 840 US Highway 1 Ste 300, Chih, TEXT-INDENT: -0.25in, Torreon,
+remove_providers_2 = c(grep(",", derm_clean$state, ignore.case = TRUE), grep("^[:0-9:]", derm_clean$state, ignore.case = TRUE), grep("^Chih", derm_clean$state, ignore.case = TRUE), grep("^Text", derm_clean$state, ignore.case = TRUE), grep("^Torreon", derm_clean$state, ignore.case = TRUE))
+derm_clean[remove_providers_2, ]
+
+
+derm_clean[1398, ] = NA # Is in mexico
+derm_clean[2387, ] = c("Igor Siniakov MD, FAAD", "550 Osborn Boulevard", "Sault Sainte Marie", "MI", "49783", "49783")
+derm_clean[9010, ] = NA # is in Mexico
+derm_clean[5329, ] = c("Lewis Howard Kaminester MD, FAAD", "840 US Highway 1 Suite 300", "North Palm Beach", "FL", "33408", "33408")
+derm_clean[4058, ] = c("David L. Crosby MD, FAAD", "6901 W Edgerton Ave", "Greenfield", "WI", "53220", "53220")
+derm_clean[remove_providers_2, ]
+```
+
+```{r}
+derm_clean = filter(derm_clean, city != "Torreon") # In Mexico removing
+derm_clean = filter(derm_clean, city != "Torreon Coahuila") # In Mexico removing
+#derm_clean = filter(derm_clean, is.na(derm_clean$state) == FALSE & is.na(derm_clean$city) == FALSE)
+
+```
+
+```{r}
+# Loading 2010 census of median income, population, zipcode
+median_income_csv = read.csv(here::here("Datasets", "mean_median_zip.csv"),
+                             stringsAsFactors = FALSE)
+```
+
+```{r}
+# Removing commas from mean, median, and pop
+df_median_pop = median_income_csv
+
+df_median_pop$Median = as.numeric(gsub(",", "", df_median_pop$Median))
+df_median_pop$Mean = as.numeric(gsub(",", "", df_median_pop$Mean))
+df_median_pop$Pop = as.numeric(gsub(",", "", df_median_pop$Pop))
+
+```
+
+```{r}
+# Got a warning that NAs were introduced - reviewing to confirm
+sum(is.na(df_median_pop$Median)) # Is fine
+sum(is.na(df_median_pop$Mean)) # Has 7 NAs - needs more review
+sum(is.na(df_median_pop$Zip)) # Is fine
+sum(is.na(df_median_pop$Pop)) # Is fine
+
+
+#filter(df_median_pop, is.na(Mean) == TRUE)
+#filter(median_income_csv, Zip == 76798)
+# None of these NAs had a mean income in the original file. Vaguely concerning? But was not planning on using the mean income regardless. 
+
+```
+
+```{r}
+colnames(df_median_pop) = c("zip", "median", "mean", "pop")
+```
+
+```{r}
+# Loading crosswalk of zipcode, state, city
+
+# Obtained from Data World - who combined data sources from US HUD, Census Bureau and USPS Zip to City Look up 
+zipcode_state_city_csv = read.csv(here::here("Datasets", "ZIP-COUNTY-FIPS_2018-03.csv"),
+                                  stringsAsFactors = FALSE)
+df_zip_state_city = select(zipcode_state_city_csv, ZIP, CITY, STATE)
+colnames(df_zip_state_city) = c("df_zip", "df_city", "df_state")
+str(df_zip_state_city)
+```
+
+```{r}
+missing_zip = data.frame(df_zip = c("62794", "79920", "24543", "33102","20307", "56002"), df_city = c("Springfield", "El Paso", "Danville", "Miami", "Washington", "Mankoto"), df_state = c("IL", "TX", "VA", "FL", "DC", "MN"))
+df_zip_state_city = data.frame(rbind(df_zip_state_city, missing_zip))
+
+```
+
+```{r}
+# Curology available locations 
+curology_states = read.csv(here::here("Datasets", "curology_locations.csv"),
+                           stringsAsFactors = FALSE)
+str(curology_states)
+
+```
+
+```{r}
+# Curology active users locations
+curology_active_csv = read.csv(here::here("Datasets", "curology_active_users.csv"),
+                               stringsAsFactors = FALSE)
+str(curology_active_csv)
+```
+
+```{r}
+curology_active = curology_active_csv
+curology_active$zipcode_abbrev = substr(curology_active$zipcode, start = 1, stop = 5)
+curology_active = unique(curology_active[,c(1:2,4)])
+curology_active$zipcode_abbrev = as.integer(curology_active$zipcode_abbrev)
+curology_active$active = "yes"
+```
+
+```{r}
+# New dataframe with derm 
+derm_clean$zip_abbrev = as.integer(derm_clean$zip_abbrev)
+df_zip_state_city$df_zip = as.integer(df_zip_state_city$df_zip)
+
+derm_clean_com = left_join(derm_clean, df_zip_state_city, by = c("zip_abbrev" = "df_zip")) %>%
+  select(., fullName, df_city, df_state, zip_abbrev)
+
+derm_clean_com = unique(derm_clean_com)
+colnames(derm_clean_com) = c("full_name", "city", "state", "zip_abbrev")
+```
+
+# Pitch 1: Number of Dermatologists by City 
+```{r}
+setup_city = derm_clean_com %>%
+  group_by(city) %>%
+  summarise(num_derms = n())
+
+#setup_city
+
+derm_by_city_other = setup_city %>%
+  group_by(num_derms) %>%
+  summarise(num_cities = n())
+
+#setup_city_2
+
+#summary(setup_city_2)
+# Minimum number of derms by city is 1, and maximum is 380. Median is 33
+
+
+derm_by_city = derm_by_city_other %>%
+  mutate(group_num_derms = case_when(
+    num_derms == 1 ~ "1 derm", 
+    num_derms >= 2 & num_derms <= 5 ~ "2 - 5 derms",
+    num_derms >= 6 & num_derms <= 10 ~ "6 - 10 derms" ,
+    num_derms >= 11 & num_derms <= 20 ~ "11 - 20 derms", 
+    num_derms >= 21 & num_derms <= 50 ~ "21 - 50 derms", 
+    num_derms >= 51 & num_derms < 385 ~ "51 + derms"
+  )) %>%
+  group_by(group_num_derms) %>%
+  summarise(group_num_cities = sum(num_cities))
+
+#derm_by_city
+```
+
+```{r}
+derm_by_city$group_num_derms = factor(derm_by_city$group_num_derms, levels = c("1 derm", "2 - 5 derms", "6 - 10 derms", "11 - 20 derms", "21 - 50 derms", "51 + derms"))
+
+plot_derm_by_city = ggplot(derm_by_city, aes(x = group_num_derms, y = group_num_cities)) +
+  geom_col() + 
+  geom_text(aes(label = group_num_cities), nudge_y = 20) + 
+  ggtitle("Number of Dermatologists in U.S. Cities", 
+          subtitle = "Data obtained from American Academy of Dermatologist (AAD)") +
+  xlab("Number of Dermatologists") + 
+  ylab("Number of Cities")
+plot_derm_by_city
+
+```
+
+
+# Pitch 1: Outputs
+```{r}
+# Table of # of derms and city with these derms 
+derm_by_city
+
+# Table of each state and the number of derms they have
+setup_city
+write.csv(setup_city, file = here::here("Datasets", "Exports", "setup_city.csv"))
+
+# Visual of range of # of derms and # of states with these derms 
+plot_derm_by_city
+ggsave(here::here("Datasets", "Exports", "plot_derm_by_city.png"), plot = plot_derm_by_city)
+
+```
+
+# Pitch 2: Number of Dermatologists by State
+```{r}
+setup_state = derm_clean_com %>%
+  group_by(state) %>%
+  summarise(num_derms = n())
+
+#setup_state
+
+setup_state_2 = setup_state %>%
+  group_by(num_derms) %>%
+  summarise(num_states = n())
+
+#setup_state_2
+
+#summary(setup_state_2)
+# Minimum number of derms by city is 1, and maximum is 1503.0 
+```
+
+```{r}
+derm_by_state = setup_state_2 %>%
+  mutate(group_num_derms = case_when(
+    num_derms >= 1 & num_derms <= 10 ~ "1 - 10 derms", 
+    num_derms >= 11 & num_derms <= 30 ~ "11 - 30 derms",
+    num_derms >= 31 & num_derms <= 50 ~ "31 - 50 derms" ,
+    num_derms >= 51 & num_derms <= 100 ~ "51 - 100 derms", 
+    num_derms >= 101 & num_derms <= 200 ~ "101 - 200 derms", 
+    num_derms >= 201 & num_derms <= 500 ~ "201 - 500 derms",
+    num_derms >= 501 ~ "501+ derms"
+  )) %>%
+  group_by(group_num_derms) %>%
+  summarise(group_num_states = sum(num_states))
+
+derm_by_state
+
+```
+
+
+```{r}
+derm_by_state$group_num_derms = factor(derm_by_state$group_num_derms, levels = c("1 - 10 derms", "11 - 30 derms", "31 - 50 derms", "51 - 100 derms", "101 - 200 derms", "201 - 500 derms", "501+ derms"))
+
+plot_derm_by_state = ggplot(derm_by_state, aes(x = group_num_derms, y = group_num_states)) + geom_col() + 
+  geom_text(aes(label = group_num_states), nudge_y = 1) + 
+  ggtitle("Number of Dermatologists in U.S. States", subtitle = "Data obtained from American Academy of Dermatologist (AAD)") + 
+  xlab("Number of Dermatologists") + 
+  ylab("Number of States")
+plot_derm_by_state
+
+```
+
+
+# Pitch 2: Outputs
+```{r}
+# State Outputs
+
+# Table of # of derms and states with these derms 
+derm_by_state
+
+# Table of each state and the number of derms they have
+setup_state
+write.csv(setup_state, file = here::here("Exports", "setup_state.csv"))
+
+# Visual of range of # of derms and # of states with these derms 
+plot_derm_by_state
+ggsave(here::here("Exports", "plot_derm_by_state.png"), plot_derm_by_state)
+
+```
+
+# More data cleaning / set up
+
+```{r}
+# dataframe of zipcodes and population
+zip_pop = df_median_pop %>%
+  select(zip, pop)
+
+str(zip_pop)
+```
+
+```{r}
+# dataframe of # of derms and zipcode
+zip_derm = derm_clean_com %>%
+  group_by(zip_abbrev) %>%
+  summarise(num_derms = n())
+
+str(zip_derm)
+
+```
+
+```{r}
+# Creating table w/ zipcode, number of derms, population, city 
+derm_capita = left_join(zip_derm, zip_pop, by = c("zip_abbrev" = "zip")) %>%
+  left_join(., df_zip_state_city, by = c("zip_abbrev" = "df_zip")) %>%
+  filter(df_state != "PR")
+
+
+# Spot checked a couple to make sure join wasn't funky
+```
+
+```{r}
+# There are 93 zipcodes where we don't have a population.
+no_pop_zip = filter(derm_capita, is.na(pop) == TRUE)
+  
+
+# Will decide later what to do with these haha. 
+```
+
+```{r}
+derm_capita_tableau = derm_capita %>%
+  select(num_derms, pop, df_city, df_state)
+
+derm_capita_tableau = derm_capita_tableau %>%
+  group_by(df_city, df_state) %>%
+  summarise(pop_sum = sum(pop, na.rm = TRUE), sum_derms = sum(num_derms, na.rm = TRUE)) %>%
+  filter(pop_sum > 1000) %>%
+  mutate(derm_per_capita = (sum_derms / pop_sum) * 1000) 
+
+```
+
+
+```{r}
+write.csv(derm_capita_tableau, file = here::here("Exports", "derm_capita_tableau.csv"))
+
+```
+
+# Pitch 3: Number of dermatologists per capita for each city (# of derms per person)
+```{r}
+# Creating data frame with each city and the # of derms per person
+derm_capita_city = derm_capita %>%
+  select(num_derms, pop, df_city, df_state)
+
+derm_capita_city$city_state = paste(derm_capita_city$df_city, derm_capita_city$df_state, sep = ", ")
+
+derm_capita_city = derm_capita_city %>%
+  group_by(city_state) %>%
+  summarise(pop_sum = sum(pop, na.rm = TRUE), sum_derms = sum(num_derms, na.rm = TRUE)) %>%
+  filter(pop_sum > 1000) %>%
+  mutate(derm_per_capita = (sum_derms / pop_sum) * 1000) 
+
+# Calculation is # of derms / total population by city. 
+```
+
+```{r}
+# Dataframes with the cities with the highest derms per capita (t25) and the lowest (b25)
+derm_capita_final_t25 = top_n(derm_capita_city, 25, derm_per_capita)
+derm_capita_final_b25 = top_n(derm_capita_city, -25, derm_per_capita)
+
+```
+
+
+```{r}
+plot_derm_capita_t25 = ggplot(derm_capita_final_t25, aes(x = reorder(city_state, derm_per_capita), y = derm_per_capita)) + 
+  geom_col(width = 0.75) +
+  coord_flip() + 
+  ggtitle("25 U.S. Cities with the Highest per Capita Dermatologists") + xlab("United States Cities") + ylab("Dermatologists per capita (1000 people)")
+plot_derm_capita_t25
+
+plot_derm_capita_b25 = ggplot(derm_capita_final_b25, aes(x = reorder(city_state, derm_per_capita), y = derm_per_capita)) + 
+  geom_col(width = 0.75) +
+  coord_flip() + 
+  ggtitle("25 U.S. Cities with the Lowest per Capita Dermatologists") + 
+  xlab("United States Cities") + 
+  ylab("Dermatologists per capita (1000 people)")
+plot_derm_capita_b25
+  
+```
+
+```{r}
+available_active = df_zip_state_city %>%
+  left_join(., curology_states, by = c("df_state"="abbreviation")) %>%
+  left_join(., curology_active, by = c("df_zip"="zipcode_abbrev"))
+
+available_active = select(available_active, df_state, df_city, df_zip, available, active)
+```
+
+```{r}
+available_active = available_active %>%
+  mutate(act_av = case_when(
+    active == "yes" & available == "no" ~ "neither",
+    is.na(active) == TRUE & available == "no" ~ "neither",
+    active == "yes" & available == "yes" ~ "active & available",
+    is.na(active) == TRUE & available == "yes" ~ "available"
+  ))
+```
+
+```{r}
+derm_capita_actav = left_join(derm_capita, available_active, by = c("zip_abbrev"="df_zip"))
+
+derm_capita_actav = select(derm_capita_actav, num_derms, pop, df_city.x, df_state.x, act_av)
+
+derm_capita_actav = unique(derm_capita_actav)
+
+```
+
+```{r}
+derm_capita_actav$city_state = paste(derm_capita_actav$df_city.x, derm_capita_actav$df_state.x, sep = ", ")
+
+derm_capita_final_b25 = left_join(derm_capita_final_b25, derm_capita_actav, by = c("city_state"="city_state")) %>%
+  select(city_state, derm_per_capita, act_av)
+
+derm_capita_final_t25 = left_join(derm_capita_final_t25, derm_capita_actav, by = c("city_state"="city_state")) %>%
+  select(city_state, derm_per_capita, act_av)
+```
+
+
+
+```{r}
+# Dataframes with the cities with the highest derms per capita (t25) and the lowest (b25)
+
+derm_capita_final_b25 = unique(derm_capita_final_b25)
+derm_capita_final_t25 = unique(derm_capita_final_t25)
+
+
+```
+
+
+```{r}
+# Rochester MN is in the top per capita twice!
+
+derm_capita_final_t25 = derm_capita_final_t25[-23,]
+```
+
+
+```{r}
+plot_derm_capita_t25_actav = ggplot(derm_capita_final_t25, aes(x = reorder(city_state, derm_per_capita), y = derm_per_capita, fill = act_av)) + 
+  geom_col(width = 0.75) +
+  coord_flip() + 
+  labs(fill = "Is Curology \nAvailable?") + 
+  ggtitle("25 U.S. Cities with the Highest per Capita Dermatologists") + xlab("United States Cities") + ylab("Dermatologists per capita \n(1000 people)")
+
+
+plot_derm_capita_b25_actav = ggplot(derm_capita_final_b25, aes(x = reorder(city_state, derm_per_capita), y = derm_per_capita, fill = act_av)) + 
+  geom_col(width = 0.75) +
+  coord_flip() + 
+  labs(fill = "Is Curology \nAvailable?") + 
+  ggtitle("25 U.S. Cities with the Lowest per Capita Dermatologists") + 
+  xlab("United States Cities") + 
+  ylab("Dermatologists per capita \n(1000 people)")
+
+
+plot_topbottom_capita = gridExtra::grid.arrange(plot_derm_capita_t25_actav, plot_derm_capita_b25_actav, ncol = 1)
+  
+```
+
+
+
+# Pitch 3: Output
+```{r}
+# Top 50 cities with the highest dermatologist per capita
+plot_derm_capita_t25
+ggsave(here::here("Exports", "plot_derm_capita_t25.png"), plot = plot_derm_capita_t25)
+
+# Bottom 50 cities with the lowest dermatologists per capita
+plot_derm_capita_b25
+ggsave(here::here("Exports", "plot_derm_capita_b25.png"), plot = plot_derm_capita_b25)
+
+# Top and Bottom 50 Cities with highest and lowest derms per capita w/ curology availability
+ggsave(here::here("Exports", "plot_topbottom_capita.png"), plot = plot_topbottom_capita, height = 14, width = 10, units = "in")
+
+```
+
+# Pitch 4: Low income areas served by curology 
+Low income areas served by curology is active OR zipcodes where curology CAN be active (OR BOTH)
+Notes: Only include zipcodes with a population > 1000, as data on small populations has a high margin of error. The median income for all households is $42,228
+
+```{r}
+# Dataframe of zipcodes below the median income
+low_income_zip = df_median_pop %>%
+  filter(pop > 1000) %>%
+  select(zip, median)
+
+str(low_income_zip)
+```
+
+
+```{r}
+# Dataframe of median income, zipcode, city, state, and whether curology is avaiable and active 
+income_available_active = left_join(low_income_zip, df_zip_state_city, by = c("zip" = "df_zip")) %>%
+  left_join(., curology_states, by = c("df_state" = "abbreviation")) %>%
+  left_join(., curology_active, by = c("zip" = "zipcode_abbrev"))
+
+income_available_active = select(income_available_active, zip, median, df_city, df_state, available, active)
+
+income_available_active = mutate(income_available_active, 
+                             below_median = case_when(
+                               median > 42228 ~ 0, 
+                               median <= 42228 ~ 1
+                             ))
+
+```
+
+```{r}
+income_available_active = unique(income_available_active)
+
+```
+
+```{r}
+#Data cleaning! Some zipcodes without states. 
+income_available_active$df_city[income_available_active$zip == 23806] = "Virginia State University"
+income_available_active$df_state[income_available_active$zip == 23806] = "VA"
+
+income_available_active$df_city[income_available_active$zip == 38505] = "Cookeville"
+income_available_active$df_state[income_available_active$zip == 38505] = "TN"
+
+income_available_active$df_city[income_available_active$zip == 57752] = "Kyle"
+income_available_active$df_state[income_available_active$zip == 57752] = "SD"
+           
+income_available_active$df_city[income_available_active$zip == 45418] = "Dayton"
+income_available_active$df_state[income_available_active$zip == 45418] = "OH"
+
+income_available_active$df_city[income_available_active$zip == 57756] = "Manderson"
+income_available_active$df_state[income_available_active$zip == 57756] = "SD"
+               
+income_available_active$df_city[income_available_active$zip == 57764] = "Oglala"
+income_available_active$df_state[income_available_active$zip == 57764] = "SD"
+                                   
+income_available_active$df_city[income_available_active$zip == 86035] = "Leupp"
+income_available_active$df_state[income_available_active$zip == 86035] = "AZ"
+                                   
+income_available_active$df_city[income_available_active$zip == 87375] = "Yatahey"
+income_available_active$df_state[income_available_active$zip == 87375] = "NM"
+                                   
+income_available_active$df_city[income_available_active$zip == 95053] = "Santa Clara"
+income_available_active$df_state[income_available_active$zip == 95053] = "CA"
+                                   
+income_available_active$df_city[income_available_active$zip == 98205] = "Everett"
+income_available_active$df_state[income_available_active$zip == 98205] = "WA"
+                                   
+income_available_active$df_city[income_available_active$zip == 99604] = "Hooper BAy"
+income_available_active$df_state[income_available_active$zip == 99604] = "AK"
+                                   
+income_available_active$df_city[income_available_active$zip == 85123] = "Arizona City"
+income_available_active$df_state[income_available_active$zip == 85123] = "AZ"
+                                   
+income_available_active$df_city[income_available_active$zip == 75962] = "Nacogdoches"
+income_available_active$df_state[income_available_active$zip == 75962] = "TX"
+                                   
+income_available_active$df_city[income_available_active$zip == 57772] = "Porcupine"
+income_available_active$df_state[income_available_active$zip == 57772] = "SD"
+                             
+income_available_active$df_city[income_available_active$zip == 57770] = "Pine Ridge"
+income_available_active$df_state[income_available_active$zip == 57770] = "SD"
+
+
+```
+
+```{r}
+# There are 499 zipcodes where there are individuals who are active subscribers in cities we are not available in. I will convert these to not active - but still need to sync with Rae
+
+income_available_active = income_available_active %>%
+  mutate(weird = case_when(
+    available == "no" & active == "yes" ~ 1))
+
+income_available_active$active[income_available_active$weird == 1] = "no"
+```
+
+```{r}
+# Fraction of low income zipcodes where Curology is available
+nrow(filter(income_available_active, below_median == 1 & available == "yes"))/ nrow(filter(income_available_active, below_median == 1))
+
+# Curology is available in 77.2% of zipcodes below median income
+
+# Fraction of low income zipcodes where Curology is active
+nrow(filter(income_available_active, below_median == 1 & active == "yes"))/ nrow(filter(income_available_active, below_median == 1))
+
+# Curology is active in 67% of zipcodes below median income
+# This would be an amazing map of lowincome zipcodes where curology is active, available, and both 
+```
+
+# Side Pitch: Number of low income zipcodes that that have an AAD dermatologists
+
+```{r}
+low_income_derm = left_join(low_income_zip, derm_clean_com, by = c("zip"="zip_abbrev"))
+
+```
+
+```{r}
+low_income_derm = low_income_derm %>%
+  mutate(below_median = case_when(median > 42228 ~ 0, median <= 42228 ~ 1))
+
+```
+
+```{r}
+low_income_derm = filter(low_income_derm, below_median == 1)
+
+```
+
+```{r}
+# Number of low income dermatologists per 
+sum(is.na(low_income_derm$full_name) == TRUE) / 
+  (sum(is.na(low_income_derm$full_name) == TRUE, is.na(low_income_derm$full_name) == FALSE))
+
+```
+
+# Pitch 5:  Number of Zipcodes served by curology
+Zipcodes where curology is active OR zipcodes where curology CAN be active (OR BOTH)
+
+```{r}
+# Fraction of zipcodes where Curology is available
+nrow(filter(income_available_active, available == "yes"))/ nrow(filter(income_available_active))
+
+# Curology is available in 83% of zipcodes with population >1000
+
+# Fraction of low income zipcodes where Curology is active
+nrow(filter(income_available_active, active == "yes"))/ nrow(filter(income_available_active))
+
+# Curology is active in 75.6% of zipcodes with population > 1000
+
+```
+
+
+```{r}
+write.csv(income_available_active, file = here::here("Exports",
+                                                     "income_available_active.csv")) 
+
+```
+
+
+# Pitch 6: Number of zipcodes that would not have access to derms w/out Curology
+Note: Populations over 1000! To actually get zipcodes with people living there. 
+
+```{r}
+zips_wout_derms = left_join(df_zip_state_city, derm_clean, by = c("df_zip" = "zip_abbrev")) %>%
+  left_join(., df_median_pop, by = c("df_zip" = "zip"))
+
+zips_wout_derms = unique(zips_wout_derms)
+```
+
+```{r}
+zips_wout_derms = zips_wout_derms %>%
+  filter(pop > 1000) %>%
+  select(df_zip, df_city, df_state, fullName, street, zipcode) 
+
+```
+
+```{r}
+zips_wout_derms = mutate(zips_wout_derms,
+                         derms_available = case_when(
+                           is.na(zipcode) == TRUE ~ "no",
+                           is.na(zipcode) == FALSE ~ "yes"
+                         ))
+```
+
+```{r}
+# Number of zipcodes without derms
+sum(is.na(zips_wout_derms$fullName) == TRUE) / sum(is.na(zips_wout_derms$zipcode) == TRUE, is.na(zips_wout_derms$zipcode) == FALSE) 
+```
+
+
+```{r}
+zips_wout_derms_available = left_join(zips_wout_derms, curology_states, c("df_state" =  "abbreviation"))
+
+```
+
+```{r}
+# Number of zipcodes without Derms that Curology is available in 
+filter(zips_wout_derms_available, derms_available == "no")
+filter(zips_wout_derms_available, derms_available == "no" & available == "yes")
+```
+
+```{r}
+# Number of zipcodes curology is available in 
+sum(zips_wout_derms_available$available == "yes") / sum(zips_wout_derms_available$available == "yes", zips_wout_derms_available$available == "no")
+
+```
+
+```{r}
+states_zips_no_derms = zips_wout_derms %>%
+  group_by(df_state, derms_available) %>%
+  summarise(counts = n())
+
+```
+
+```{R}
+states_zips_NO_SPREAD = tidyr::spread(states_zips_no_derms, key = derms_available, value = counts)
+states_zips_NO_SPREAD = mutate(states_zips_NO_SPREAD, perc_100 = 
+                                 (no / sum(no, yes, na.rm = TRUE))*100)
+  
+```
+
+```{r}
+states_zips_NO_SPREAD = left_join(states_zips_NO_SPREAD, curology_states, c("df_state" =  "abbreviation"))
+states_zips_no_derms = select(states_zips_NO_SPREAD, df_state, state, available, perc_100)
+
+```
+
+```{r}
+zipcodes_availability_plot = ggplot(states_zips_no_derms, aes(y = perc_100, x = state, fill = available)) + 
+  geom_col() +
+  labs(fill = "Is Curology Available?") + 
+  ggtitle("Zip Codes Without Dermatologists by State vs. \nCurology Dermatologist Availability") +
+  xlab("State Names") + 
+  ylab ("Percentage of Zip  Codes") +
+  coord_flip()
+
+zipcodes_availability_plot
+
+```
+
+```{r}
+write.csv(x = states_zips_no_derms, file = here::here("Exports",
+                                                      "states_zips_no_derms.csv")) 
+write.csv(x = zips_wout_derms, file = here::here("Exports", "zips_wout_derms.csv"))
+
+```
+
+```{r}
+ggsave(here::here("Exports", "zipcodes_availability_plot.png"), 
+       plot = zipcodes_availability_plot)
+
+```
+
+
+# Pitch Fifty Eleven - Metro Areas Analysis
+
+```{r}
+metro_csv = read.csv(here::here("Datasets", "major_metro_areas.csv"), 
+                     stringsAsFactors = FALSE)
+
+```
+
+```{r}
+metro_zipcodes_serve = metro_csv
+metro_zipcodes_serve$City = tolower(metro_zipcodes_serve$City)
+
+```
+
+```{r}
+# Data cleaning for cities with weird names 
+
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "indianapolis city (balance)"] = "indianapolis"
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "nashville-davidson metropolitan government (balance)"] = "nashville"
+metro_zipcodes_serve[318, 3] = "davidson"
+metro_zipcodes_serve[318, 4] = "TN"
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "louisville/jefferson county metro government (balance)"] = "louisville"
+metro_zipcodes_serve[319, 3] = "jefferson"
+metro_zipcodes_serve[319, 4] = "IN"
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "urban honolulu"] = "honolulu"
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "milford city (balance)"] = "milford"
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "san buenaventura (ventura)"]  = "ventura"
+metro_zipcodes_serve$City[metro_zipcodes_serve$City == "augusta-richmond county consolidated government (balance)"] = "augusta"
+metro_zipcodes_serve[320, 3] = "richmond"
+metro_zipcodes_serve[320, 4] = "SC"
+
+
+```
+
+```{r}
+zipcode_state_city_lower = df_zip_state_city
+zipcode_state_city_lower$df_city = tolower(zipcode_state_city_lower$df_city)
+
+metrovsnonmetro = left_join(zipcode_state_city_lower, metro_zipcodes_serve, by = c("df_city"="City", "df_state" = "State"))
+
+```
+
+
+```{r}
+metrovsnonmetro = mutate(metrovsnonmetro, metro_area = 
+                           case_when(
+                             is.na(Metro.Area) == TRUE ~ "no",
+                             is.na(Metro.Area) == FALSE ~ "yes"
+                           ))
+
+metrovsnonmetro = select(metrovsnonmetro, df_zip, df_city, df_state, metro_area)
+
+```
+
+
+```{r}
+derm_metrovsnonmetro = left_join(metrovsnonmetro, derm_clean_com, by = c("df_zip"="zip_abbrev"))
+derm_metrovsnonmetro = derm_metrovsnonmetro %>%
+  mutate(derm_available = case_when(
+    is.na(city) == TRUE ~ "no",
+    is.na(city) == FALSE ~ "yes"
+  ))
+
+```
+
+```{r}
+derm_metrovsnonmetro = select(derm_metrovsnonmetro, df_zip, df_city, df_state, metro_area, derm_available)
+```
+
+```{r}
+state_derm_metro = derm_metrovsnonmetro %>%
+  group_by(df_state, metro_area, derm_available) %>%
+  summarise(counts = n())
+
+```
+
+```{r}
+# Number of zipcodes with derms in metro vs. non metro areas
+derm_metro = state_derm_metro %>%
+  filter(derm_available == "yes")
+
+derm_metro_spread = tidyr::spread(derm_metro, key = metro_area, value = counts)
+
+```
+
+```{r}
+derm_metro_spread =  mutate(derm_metro_spread, 
+                            perc_derms_rural = (no / sum(no, yes, na.rm = TRUE) * 100),
+                            perc_derms_metro = (yes / sum(no, yes, na.rm = TRUE) * 100))
+
+derm_metro_spread[is.na(derm_metro_spread)] = 0
+
+```
+
+
+```{r}
+derm_metro_spread_final = left_join(derm_metro_spread, curology_states, by = c("df_state"="abbreviation"))
+
+```
+
+
+```{r}
+# Plot of number of zipcodes w/ derms in non metro areas 
+nonurban_plot = ggplot(derm_metro_spread_final, 
+                       aes(x = state, y = perc_derms_rural, fill = available)) +
+  geom_col() + 
+  labs(fill = "Is Curology Available?") + 
+  ggtitle("Percentage of States' Non-Metro Areas With Dermatologists vs. \nCurology Dermatologist Availability", subtitle = "Non-metro areas defined by zip code") +
+  xlab("State Names") + 
+  ylab ("Percentage of Non-Metro Zip Codes") +
+  coord_flip()
+nonurban_plot
+
+
+urban_plot = ggplot(derm_metro_spread_final, aes(x = state, y = perc_derms_metro, fill = available)) +  
+  geom_col() + 
+  labs(fill = "Is Curology Available?") + 
+  ggtitle("Percentage of States' Metro Areas With Dermatologists vs. \nCurology Dermatologist Availability", subtitle = "Metro areas defined by zip code") +
+  xlab("State Names") + 
+  ylab ("Percentage of Metro Zip Codes") +
+  coord_flip()
+urban_plot
+
+
+```
+
+```{r}
+nonurban_counts_plot = ggplot(derm_metro_spread_final, aes(x = state, y = no, fill = available)) + 
+  geom_col() + 
+  labs(fill = "Is Curology Available?") + 
+  ggtitle("Number of States' Non-Metro Areas With Dermatologists vs. \nCurology Dermatologist Availability", subtitle = "Non-metro areas defined by zip code") +
+  xlab("State Names") + 
+  ylab ("Number of Non-Metro Zip Codes") +
+  coord_flip()
+nonurban_counts_plot
+
+
+urban_counts_plot = ggplot(derm_metro_spread_final, aes(x = state, y = yes, fill = available)) +  
+  geom_col() + 
+  labs(fill = "Is Curology Available?") + 
+  ggtitle("Number of States' Metro Areas With Dermatologists vs. \nCurology Dermatologist Availability", subtitle = "Metro areas defined by zip code") +
+  xlab("State Names") + 
+  ylab ("Number of Metro Zip Codes") +
+  coord_flip()
+urban_counts_plot
+
+
+
+```
+
+
+```{r}
+ggsave(here::here("Exports", "nonurban_plot.png"), plot = nonurban_plot, width = 7, height = 7, units = "in")
+ggsave(here::here("Exports", "urban_plot.png"), plot = urban_plot, width = 7, height = 7, units = "in")
+ggsave(here::here("Exports", "nonurban_counts_plot.png"), plot = nonurban_counts_plot, width = 7, height = 7, units = "in")
+ggsave(here::here("Exports", "urban_counts_plot.png"), plot = urban_counts_plot, width = 7, height = 7, units = "in")
+
+```
