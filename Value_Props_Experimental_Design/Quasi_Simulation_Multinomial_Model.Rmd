@@ -1,0 +1,504 @@
+---
+title: "Hierarchical Bayes"
+author: "Ijeamaka Anyene"
+date: "12/16/2019"
+output: html_document
+---
+
+# Turning Experimental Design into Dummy Data
+This is the original set up - if the experimental design only included one design block. You should use this for a simple Max Diff Analysis. 
+
+```{r}
+n_ques = 7
+n_alts = 4
+```
+
+```{r}
+experimental_design = c(1, 2, 4, 6, 1, 5, 6, 7, 2, 4, 5, 7, 1, 3, 4, 5, 3, 4, 6, 7, 1, 2, 3, 7, 2, 3, 5, 6)
+design_block = t(matrix(experimental_design, nrow = 4, ncol = 7))
+```
+
+```{r}
+#combo_treatment = as.vector(t(design_block))
+block = rep(1:7, each = 4)
+```
+
+```{r}
+profiles = model.matrix(~ experimental_design + block)[, -1]
+profiles = as.character(profiles)
+profiles_coded = fastDummies::dummy_cols(profiles)
+colnames(profiles_coded) = c("data", "vp_1", "vp_2", "vp_4", "vp_6", "vp_5", "vp_7", "vp_3")
+```
+
+```{r}
+# Converting to matrix + numeric for simulation later
+profiles_coded = apply(profiles_coded[,2:8], 2, as.numeric)
+```
+
+# Turning Experimental Design into Dummy Data (Larger)
+This is the same as the above code - but now repeating the process where we have 16 different design blocks & 23 different design blocks. 
+Both of these can be found in the  Max Diff Analysis- Designs gsheet tab Max Diff Version 7/4/7. 
+
+```{r}
+# Experimental design as in gsheet for 16 different design blocks for 28 value props
+# Note this is the experimental design where some value props do not appear with other value props. 
+versions_16 = list(version_1 = c(1, 2, 5, 16, 17, 21, 22),
+                   version_2 = c(3, 4, 7, 11, 15, 21, 23),
+                   version_3 = c(6, 7,	9,	10,	16,	19,	24),
+                   version_4 = c(5,	7,	8,	11,	14,	19,	20),
+                   version_5 = c(3,	14,	16,	18,	21,	24,	28),
+                   version_6 = c(4,	5,	18,	20,	24,	25,	26),
+                   version_7 = c(2,	9,	11,	13,	14,	25,	28),
+                   version_8 = c(6,	11,	13,	16,	22,	26,	27),
+                   version_9 = c(4,	10,	12,	14,	17,	22,	25),
+                   version_10 = c(1,	6,	8,	10,	15,	25,	28),
+                   version_11 = c(2,	5,	6,	12,	15,	23,	24),
+                   version_12 = c(1,	8,	9,	12,	20,	21,	26),
+                   version_13 = c(8,	17,	18,	19,	23,	27,	28),
+                   version_14 = c(3,	12,	13,	15,	17,	19,	26),
+                   version_15 = c(3,	9,	10,	20,	22,	23,	27),
+                   version_16 = c(1,	2,	4,	7,	13,	18,	27)
+                   )
+
+versions_23 = list(version_1 = c(12,14,15,20,22,23,25),
+                   version_2 = c(2,5,6,7,14,16,18),
+                   version_3 = c(5,8,12,13,22,27,28),
+                   version_4 = c(7,9,11,13,15,18,27),
+                   version_5 = c(1,3,7,10,16,20,27),
+                   version_6 = c(6,9,13,16,21,22,25),
+                   version_7 = c(3,4,5,6,13,19,20),
+                   version_8 = c(7,9,14,20,24,26,28),
+                   version_9 = c(1,6,10,15,17,22,24),
+                   version_10 = c(1,4,7,8,11,17,25),
+                   version_11 = c(3,4,10,11,12,14,21),
+                   version_12 = c(4,12,15,16,17,26,28),
+                   version_13 = c(8,11,12,16,19,23,24),
+                   version_14 = c(2,4,7,15,19,21,22),
+                   version_15 = c(2,5,10,13,23,25,26),
+                   version_16 = c(2,3,5,8,9,15,24),
+                   version_17 = c(1,9,13,14,17,19,23),
+                   version_18 = c(1,6,8,14,21,26,27),
+                   version_19 = c(3,18,19,24,25,27,28),
+                   version_20 = c(2,3,11,17,18,22,26),
+                   version_21 = c(5,17,18,20,21,23,27),
+                   version_22 = c(4,8,9,10,18,23,28),
+                   version_23 = c(1,2,6,11,12,20,28))
+```
+
+```{r}
+# Using the within design block experimental design (seen in object experimental_design) - expanding to be the actual combination for each version 
+experimental_design_16 = list(NULL)
+experimental_design_23 = list(NULL)
+
+for(i in 1:length(versions_16)){
+  
+  temp = versions_16[[i]]
+  temp = temp[experimental_design]
+  experimental_design_16[[i]] = temp
+  
+}
+
+for(i in 1:length(versions_23)){
+  
+  temp = versions_23[[i]]
+  temp = temp[experimental_design]
+  experimental_design_23[[i]] = temp
+  
+}
+```
+
+```{r}
+# Converting into dummy variables as needed for mlogit function + simulation 
+profiles_16 = model.matrix(~ experimental_design_16[[1]] + experimental_design_16[[2]] + 
+                            experimental_design_16[[3]] + experimental_design_16[[4]] + 
+                            experimental_design_16[[4]] + experimental_design_16[[5]] +
+                            experimental_design_16[[6]] + experimental_design_16[[7]] +
+                            experimental_design_16[[8]] + experimental_design_16[[9]] +
+                            experimental_design_16[[10]] + experimental_design_16[[11]] +
+                            experimental_design_16[[12]] + experimental_design_16[[13]] +
+                            experimental_design_16[[14]] + experimental_design_16[[15]] +
+                            experimental_design_16[[16]])[, -1]
+profiles_16 = as.character(profiles_16)
+profiles_coded_16 = fastDummies::dummy_cols(profiles_16)
+profiles_coded_16 = apply(profiles_coded_16, 2, as.numeric)
+```
+
+```{r}
+# Converting into dummy variables as needed for mlogit function + simulation 
+profiles_23 = model.matrix(~ experimental_design_23[[1]] + experimental_design_23[[2]] + 
+                            experimental_design_23[[3]] + experimental_design_23[[4]] + 
+                            experimental_design_23[[4]] + experimental_design_23[[5]] +
+                            experimental_design_23[[6]] + experimental_design_23[[7]] +
+                            experimental_design_23[[8]] + experimental_design_23[[9]] +
+                            experimental_design_23[[10]] + experimental_design_23[[11]] +
+                            experimental_design_23[[12]] + experimental_design_23[[13]] +
+                            experimental_design_23[[14]] + experimental_design_23[[15]] +
+                            experimental_design_23[[16]] + experimental_design_23[[17]] + 
+                             experimental_design_23[[18]] + experimental_design_23[[19]] +
+                             experimental_design_23[[20]] + experimental_design_23[[21]] + 
+                             experimental_design_23[[22]] + experimental_design_23[[23]])[, -1]
+profiles_23 = as.character(profiles_23)
+profiles_coded_23 = fastDummies::dummy_cols(profiles_23)
+profiles_coded_23 = apply(profiles_coded_23, 2, as.numeric)
+```
+
+
+```{r}
+# Renaming columns to say vp_ instead of data
+colnames_profiles = colnames(profiles_coded_16)
+colnames_profiles = gsub("\\.data", "vp", colnames_profiles)
+colnames_profiles[1] = "data"
+colnames(profiles_coded_16) = colnames_profiles
+
+
+colnames_profiles = colnames(profiles_coded_23)
+colnames_profiles = gsub("\\.data", "vp", colnames_profiles)
+colnames_profiles[1] = "data"
+colnames(profiles_coded_23) = colnames_profiles
+```
+
+```{r}
+# Preview of data (for the 16 version)!
+head(profiles_coded_16)
+```
+
+This is almost what we want! However, as a reminder. Max diff designs require 1 for what is "most" and -1 for what is "least". The design above does not have any negatives ones. This will be resolved next. 
+
+```{r}
+rows = seq(1, 448, by = 4) # Because each new block starts every 4 rows
+profiles_coded_16final = matrix(ncol = 29, nrow = 1) 
+
+for(i in rows){
+  temp = profiles_coded_16[i:(i+3), ]
+  temp = rbind(temp, -temp) # combining the same set with positive version and negative version 
+  
+  profiles_coded_16final = rbind(profiles_coded_16final, temp)
+  
+  }
+
+profiles_coded_16final = profiles_coded_16final[-1, ]
+profiles_coded_16final = profiles_coded_16final[, -1]
+```
+
+```{r}
+rows = seq(1, 644, by = 4) # Because each new block starts every 4 rows
+profiles_coded_23final = matrix(ncol = 29, nrow = 1) 
+
+for(i in rows){
+  temp = profiles_coded_23[i:(i+3), ]
+  temp = rbind(temp, -temp) # combining the same set with positive version and negative version 
+  
+  profiles_coded_23final = rbind(profiles_coded_23final, temp)
+  
+  }
+
+profiles_coded_23final = profiles_coded_23final[-1, ]
+profiles_coded_23final = profiles_coded_23final[, -1]
+```
+
+```{r}
+head(profiles_coded_16final)
+```
+
+How the above is set up: in this experimental design - each block is a set of four alternatives. You see the set of 4 as dummy variables for "most" coded as positive 1 then you see the same set again as dummy variables for "least" coded as negative 1. 
+
+
+# Setting Up for Simulation 
+In the below I will be generating the average and each individual's part worth to create coefficients, to set up the simulation. Note the end will not be the observed data! Just parameters from which we will create the simulation.  
+
+**Coefficients**
+```{r}
+coef_names = colnames(profiles_coded_16final)
+# average part worths in the population 
+init_mu = c(-1, -1.5, 0.5, -1, -2, -1.5, -2)
+mu = rep(init_mu, times = 4)
+names(mu) = coef_names
+
+# covariance matrix 
+init_sigma = c(0.3, 1, 0.1, 0.3, 1, 0.2, 0.3)
+init_sigma = rep(init_sigma, times = 4)
+sigma_cov = diag(init_sigma)
+dimnames(sigma_cov) = list(coef_names, coef_names)
+```
+
+```{r}
+# generate each respondent's part worth coefficients using multivariate normal distribution
+set.seed(1)
+resp_id = 1:2300
+
+coefs_16 = MASS::mvrnorm(length(resp_id), mu = mu, Sigma = sigma_cov)
+colnames(coefs_16) = coef_names
+```
+
+```{r}
+temp_names = colnames(profiles_coded_23final)
+temp_indices = match(temp_names, coef_names)
+
+coefs_23 = coefs_16[, temp_indices]
+```
+
+# Running Simulation 
+This simulation + this study design is set up such that:
++ A fixed number people will "answer" each design block where the design blocks rows are outlined in the profile sets object (each design block is 56 rows sequentially of profile_coded_final)  
++ The results will be saved in a gsheet and # respondents will be increased - to save my computer memory
++ Therefore there will be $X*16$ respondents for the 16 versions design blocks and $X*23$ for the 23 versions.  
++  In the 16 versions design block, there are alternatives that do not appear with all other alternatives. This is not true for the 23 versions.  
++ The probability of the respondent selecting a value prop is based off of the calculated coefficients above - the same coefficients are being used for both design blocks. However, what the value prop is actually selected will vary between the two versions because of the actual choice will differ (cannot be avoided unfortunately)
+
+```{r}
+set.seed(1)
+df_cbc_16 = data.frame(NULL)
+df_cbc_23 = data.frame(NULL)
+resp_id = 1:1150
+# Needs to also sequence through each profile set. 
+seq_psets = rep(1:23, times = 50)
+skip_psets = which(seq_psets <= 16)
+
+profiles_sets = list(profile_1 = 1:56,
+                     profile_2 = 57:(57+55), 
+                     profile_3 = 113:(113+55),
+                     profile_4 = 169:(169+55),
+                     profile_5 = 225:(225+55),
+                     profile_6 = 281:(281+55),
+                     profile_7 = 337:(337+55),
+                     profile_8 = 393:(393+55),
+                     profile_9 = 449:(449+55),
+                     profile_10 = 505:(505+55),
+                     profile_11 = 561:(561+55), 
+                     profile_12 = 617:(617+55),
+                     profile_13 = 673:(673+55),
+                     profile_14 = 729:(729+55),
+                     profile_15 = 785:(785+55),
+                     profile_16 = 841:(841+55),
+                     profile_17 = 897:(897+55),
+                     profile_18 = 953:(953+55), 
+                     profile_19 = 1009:(1009+55),
+                     profile_20 = 1065:(1065+55),
+                     profile_21 = 1121:(1121+55),
+                     profile_22 = 1177:(1177+55),
+                     profile_23 = 1233:(1233+55))
+
+for(i in seq_along(resp_id)){
+  
+  profile_i = profiles_sets[[seq_psets[i]]]
+  
+  if(i %in%  skip_psets){
+    # Computing each respondent's expected utility for each profile
+    utility_16 = profiles_coded_16final[profile_i, ] %*% coefs_16[i, ]
+    wide_util_16 = matrix(data = utility_16, ncol = n_alts, byrow = TRUE)
+    
+    utility_23 = profiles_coded_23final[profile_i, ] %*% coefs_23[i, ]
+    wide_util_23 = matrix(data = utility_23, ncol = n_alts, byrow = TRUE)
+  
+    # Compute choice probabilities for each alternative according to the multinomial logit probabilities
+    probs_16 = exp(wide_util_16) / rowSums(exp(wide_util_16))
+    probs_23 = exp(wide_util_23) / rowSums(exp(wide_util_23))
+  
+    # Sampling to determine which alternative the respondent chooses
+    choice_16 = apply(probs_16, 1, function(x) sample(1:n_alts, size = 1, prob = x))
+    choice_16 = rep(choice_16, each = n_alts) == rep(1:n_alts, (n_ques*2))
+    
+    choice_23 = apply(probs_23, 1, function(x) sample(1:n_alts, size = 1, prob = x))
+    choice_23 = rep(choice_23, each = n_alts) == rep(1:n_alts, (n_ques*2))
+    
+    conjoint_16 = data.frame(resp_id = rep(i, (n_ques*2)),
+                          question = rep(1:n_ques, each = (n_alts*2)),
+                          alt = rep(1:(n_ques*2), each = n_alts), 
+                          profiles_coded_16final[profile_i, ], 
+                          choice = as.numeric(choice_16))
+    
+    conjoint_23 = data.frame(resp_id = rep(i, (n_ques*2)),
+                          question = rep(1:n_ques, each = (n_alts*2)),
+                          alt = rep(1:(n_ques*2), each = n_alts), 
+                          profiles_coded_23final[profile_i, ], 
+                          choice = as.numeric(choice_23))
+    
+    df_cbc_16 = rbind(df_cbc_16, conjoint_16)
+    df_cbc_23 = rbind(df_cbc_23, conjoint_23)
+    
+  } else {
+    utility_23 = profiles_coded_23final[profile_i, ] %*% coefs_23[i, ]
+    wide_util_23 = matrix(data = utility_23, ncol = n_alts, byrow = TRUE)
+    
+    probs_23 = exp(wide_util_23) / rowSums(exp(wide_util_23))
+    
+    choice_23 = apply(probs_23, 1, function(x) sample(1:n_alts, size = 1, prob = x))
+    choice_23 = rep(choice_23, each = n_alts) == rep(1:n_alts, (n_ques*2))
+    
+    conjoint_23 = data.frame(resp_id = rep(i, (n_ques*2)),
+                          question = rep(1:n_ques, each = (n_alts*2)),
+                          alt = rep(1:(n_ques*2), each = n_alts), 
+                          profiles_coded_23final[profile_i, ], 
+                          choice = as.numeric(choice_23))
+    
+    df_cbc_23 = rbind(df_cbc_23, conjoint_23)
+    
+  }
+}
+
+```
+
+
+## Fitting a Choice Model
+As a reminder - here are the coefficients that then were used to generate probabilities to create the observed data
+```{r}
+sort(colMeans(coefs_16), decreasing = TRUE)
+```
+
+We can see that the coefficients with the highest means are: vp_24, vp_11, vp_25, vp_16, vp_1, vp_21, vp_26, vp_9. This should translate into the parameters with the highest estimates in the model. 
+
+```{r}
+library(mlogit)
+```
+
+```{r}
+# Fitting a multinomial logit model using mlogit requires the data to be a mlogit data object. 
+# Creating a mlogit data object 
+mlogit_16 = mlogit.data(data = df_cbc_16, choice = "choice", shape = "long", varying = 4:31, 
+                         id.var = "resp_id", alt.levels = paste(1:4))
+
+mlogit_23 = mlogit.data(data = df_cbc_23, choice = "choice", shape = "long", varying = 4:31, 
+                         id.var = "resp_id", alt.levels = paste(1:4))
+
+```
+
+```{r}
+# Not including intercept in the model - indicated by 0
+set.seed(1)
+m16 = mlogit(choice ~ 0 + vp_2 + vp_3 + vp_4 + vp_5 + vp_6 + vp_7 +
+              vp_8 + vp_9 + vp_10 + vp_11 + vp_12 + vp_13 + vp_14 + vp_15 +
+              vp_16 + vp_17 + vp_18 + vp_19 + vp_20 + vp_21 + vp_22 +
+              vp_23 + vp_24 + vp_25 + vp_26 + vp_27 + vp_28, data = mlogit_16)
+
+m23 = mlogit(choice ~ 0 + vp_2 + vp_3 + vp_4 + vp_5 + vp_6 + vp_7 +
+              vp_8 + vp_9 + vp_10 + vp_11 + vp_12 + vp_13 + vp_14 + vp_15 +
+              vp_16 + vp_17 + vp_18 + vp_19 + vp_20 + vp_21 + vp_22 +
+              vp_23 + vp_24 + vp_25 + vp_26 + vp_27 + vp_28, data = mlogit_23)
+#summary(m16)
+#summary(m23)
+```
+
+```{r}
+# Coefficients from multinomial logit model 
+sort(m16$coefficients)[18:27]
+sort(m23$coefficients)[18:27]
+
+# Coefficients used to generate probabilities
+sort(colMeans(coefs_16))[19:28]
+
+```
+
+
+This model only estimates a single set of coefficients for the whole sample. For this study - we want each respondent to have their own coefficients. Usually by allowing heterogeneity into the model - the model can fit the data better and make more accurate prediction. So allons-y
+
+```{r}
+# Adding consumer heterogeneity via random effects model or hierarchical model
+# creating character vector indicating a normal distribution for the random effects for the respondents
+m16_rpar = rep("n", length = length(m16$coefficients))
+m23_rpar = rep("n", length = length(m23$coefficients))
+names(m16_rpar) = names(m16$coefficients)
+names(m23_rpar) = names(m23$coefficients)
+
+# panel indicates we have multiple observations for each respondents, and we do not want random parameters correlated
+m16_hier = mlogit(choice ~ 0 + vp_2 + vp_3 + vp_4 + vp_5 + vp_6 + vp_7 +
+              vp_8 + vp_9 + vp_10 + vp_11 + vp_12 + vp_13 + vp_14 + vp_15 +
+              vp_16 + vp_17 + vp_18 + vp_19 + vp_20 + vp_21 + vp_22 +
+              vp_23 + vp_24 + vp_25 + vp_26 + vp_27 + vp_28, data = mlogit_16,
+                 panel = TRUE, rpar = m16_rpar, correlation = FALSE, seed = 1)
+
+m23_hier = mlogit(choice ~ 0 + vp_2 + vp_3 + vp_4 + vp_5 + vp_6 + vp_7 +
+              vp_8 + vp_9 + vp_10 + vp_11 + vp_12 + vp_13 + vp_14 + vp_15 +
+              vp_16 + vp_17 + vp_18 + vp_19 + vp_20 + vp_21 + vp_22 +
+              vp_23 + vp_24 + vp_25 + vp_26 + vp_27 + vp_28, data = mlogit_23,
+                 panel = TRUE, rpar = m23_rpar, correlation = FALSE, seed = 1)
+```
+
+```{r}
+#summary(m16_hier)
+summary(m23_hier)
+
+```
+
+```{r}
+# Coefficients from multinomial logit model 
+sort(m16_hier$coefficients[1:27])[18:27]
+sort(m23_hier$coefficients[1:27])[18:27]
+
+# Coefficients used to generate probabilities
+sort(colMeans(coefs_16))[19:28]
+```
+
+## Assessing Results of Models 
+```{r}
+coefs_means = sort(colMeans(coefs_16), decreasing  = TRUE)
+estimate_16 = sort(m16_hier$coefficients[1:27], decreasing = TRUE)
+estimate_23 = sort(m23_hier$coefficients[1:27], decreasing = TRUE)
+```
+
+```{r}
+coefs_means = as.data.frame(coefs_means) 
+estimate_16 = as.data.frame(estimate_16)
+estimate_23 = as.data.frame(estimate_23)
+
+View(coefs_means)
+View(estimate_16)
+View(estimate_23)
+
+```
+
+
+
+
+```{r}
+# Parameters the simulated data was created from 
+vp_order = paste0("vp_", 1:28)
+temp_order = match(vp_order, colnames(coefs_16))
+coefs_means = coefs_16[ ,temp_order]
+coefs_means = colMeans(coefs_means)
+```
+
+```{r}
+estimate_16 = sort(m16_hier$coefficients[1:27], decreasing = TRUE)
+#ci16 = confint(m16_hier)
+
+estimate_23 = sort(m23_hier$coefficients[1:27], decreasing = TRUE)
+#ci23 = confint(m23_hier)
+```
+
+```{r}
+design_comparison = data.frame(
+  orig_mu = mu_orig,
+  sim_coef = coefs_means,
+  coef_16 = c(0, estimate_16), 
+  LL_16 = c(0, ci16[1:27,1]),
+  UL_16 = c(0, ci16[1:27,2]),
+  coef_23 = c(0, estimate_23), 
+  LL_23 = c(0, ci23[1:27,1]),
+  UL_23 = c(0, ci23[1:27,2])
+)
+
+```
+
+```{r}
+predict_calc = function(column){
+  temp = exp(column)
+  temp_estimate = temp / sum(temp)
+  
+  return(temp_estimate)
+}
+
+```
+
+```{r}
+predic_design_comparison = apply(X = design_comparison, MARGIN = 2, predict_calc)
+predic_design_comparison = as.data.frame(predic_design_comparison)
+
+predic_design_comparison$assess_16 = ifelse(predic_design_comparison$sim_coef >= predic_design_comparison$LL_16 & 
+                                        predic_design_comparison$sim_coef <= predic_design_comparison$UL_16, 
+                                        "Yes", "No")
+
+predic_design_comparison$assess_23 = ifelse(predic_design_comparison$sim_coef >= predic_design_comparison$LL_23 & 
+                                        predic_design_comparison$sim_coef <= predic_design_comparison$UL_23, 
+                                        "Yes", "No")
+  
+```

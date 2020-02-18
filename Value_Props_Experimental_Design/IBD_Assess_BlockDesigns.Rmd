@@ -1,0 +1,306 @@
+---
+title: "Assess BlockDesigns"
+author: "Ijeamaka Anyene"
+date: "12/12/2019"
+output: html_document
+---
+
+```{r}
+library(AlgDesign)
+```
+
+```{r}
+treatment_7 = 1:7 # number of alternatives
+treatment_8 = 1:8
+k_3 = 3 # block size 
+k_4 = 4
+```
+
+```{r}
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 7))$diagonality
+```
+
+```{r}
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 8))$diagonality
+```
+
+**Looking at the diagonality of different combinations**
+```{r}
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 7))$diagonality
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 8))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 9))$diagonality #
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 10))$diagonality 
+```
+
+```{r}
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 7))$diagonality
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 8))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 9))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 10))$diagonality
+optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 11))$diagonality
+```
+
+```{r}
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 7))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 8))$diagonality
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 9))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 10))$diagonality
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 11))$diagonality
+```
+
+```{r}
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 7))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 8))$diagonality
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 9))$diagonality # Yes
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 10))$diagonality
+optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 11))$diagonality
+```
+
+**Best Designs:**  
+7, 3, 8  
+7, 4, 8   
+7, 4, 9  
+8, 4, 7  
+8, 4, 8  
+8, 4, 9  
+8, 3, 7  
+8, 3, 9  
+  
+  
+**Of the best designs, reviewing matrix for best balance**  
+*Note: Winner 7/4/7*  
+COMBO 7/3/8  
+
+```{r}
+combo_7_3_8 = optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_3, 8))
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_3, ncol = 8)
+n = length(combo_7_3_8$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_7_3_8$Blocks[[i]][,1]
+}
+```
+
+```{r}
+t(block_design_matrix)
+```
+
+
+```{r}
+crossprod(table(rep(0:7, each = 3), unlist(combo_7_3_8$design)))
+```
+
+COMBO 7/4/7
+
+```{r}
+combo_7_4_7 = optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 7))
+combo_7_4_7$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_4, ncol = 7)
+n = length(combo_7_4_7$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_7_4_7$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+
+
+```{r}
+crossprod(table(rep(1:7, each = 4), unlist(combo_7_4_7$design)))
+```
+
+COMBO 7/4/8
+
+```{r}
+combo_7_4_8 = optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 8))
+combo_7_4_8$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_4, ncol = 8)
+n = length(combo_7_4_8$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_7_4_8$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+
+```{r}
+crossprod(table(rep(0:7, each = 4), unlist(combo_7_4_8$design)))
+```
+
+
+COMBO 7/4/9
+```{r}
+combo_7_4_9 = optBlock(~., withinData = factor(treatment_7), blocksizes = rep(k_4, 9))
+combo_7_4_9$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_4, ncol = 9)
+n = length(combo_7_4_9$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_7_4_9$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+```{r}
+crossprod(table(rep(-1:7, each = 4), unlist(combo_7_4_9$design)))
+```
+
+
+COMBO 8/4/7
+```{r}
+combo_8_4_7 = optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 7))
+combo_8_4_7$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_4, ncol = 7)
+n = length(combo_8_4_7$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_8_4_7$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+
+```{r}
+crossprod(table(rep(1:7, each = 4), unlist(combo_8_4_7$design)))
+```
+
+COMBO 8/4/8
+```{r}
+combo_8_4_8 = optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 8))
+combo_8_4_8$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_4, ncol = 8)
+n = length(combo_8_4_8$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_8_4_8$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+
+```{r}
+crossprod(table(rep(1:8, each = 4), unlist(combo_8_4_8$design)))
+```
+
+
+Combo 8/4/9
+```{r}
+combo_8_4_9 = optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_4, 9))
+combo_8_4_9$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_4, ncol = 9)
+n = length(combo_8_4_9$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_8_4_9$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+
+```{r}
+crossprod(table(rep(1:9, each = 4), unlist(combo_8_4_9$design)))
+```
+
+Combo 8/3/7
+```{r}
+combo_8_3_7 = optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 7))
+combo_8_3_7$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_3, ncol = 7)
+n = length(combo_8_3_7$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_8_3_7$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+
+```{r}
+crossprod(table(rep(1:7, each = 3), unlist(combo_8_3_7$design)))
+```
+
+Combo 8/3/8
+```{r}
+combo_8_3_8 = optBlock(~., withinData = factor(treatment_8), blocksizes = rep(k_3, 8))
+combo_8_3_8$diagonality
+```
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = k_3, ncol = 8)
+n = length(combo_8_3_8$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = combo_8_3_8$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+```{r}
+crossprod(table(rep(1:8, each = 3), unlist(combo_8_3_8$design)))
+```
+
+**Creating Max Diff Design - to create multiple design blocks**  
+*Choosing Max Diff Version for 7 4 7 or 8 4 8*
+```{r}
+treatment_28 = 1:28 #total amount of alternatives
+k_7 = 7 # number of alternatives per design block 
+```
+
+```{r}
+blocks = 16 # Number of versions 
+max_diff_28 = optBlock(~., withinData = factor(treatment_28), blocksizes = rep(k_7, blocks))
+```
+
+```{r}
+# Creates experimental design 
+block_design_matrix = matrix(data = NA, nrow = k_7, ncol = blocks)
+n = length(max_diff_28$Blocks)
+
+for(i in 1:n){
+  block_design_matrix[,i] = max_diff_28$Blocks[[i]][,1]
+}
+
+t(block_design_matrix)
+```
+
+```{r}
+# Does counts for above experimental design 
+crossprod(table(rep(1:7, each = blocks), unlist(max_diff_28$design)))
+```
+
+
+

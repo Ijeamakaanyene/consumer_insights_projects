@@ -1,0 +1,106 @@
+---
+title: "AlgDesign_Tutorial"
+author: "Ijeamaka Anyene"
+date: "12/18/2019"
+output: html_document
+---
+
+```{r, message = FALSE, warning = FALSE}
+library(AlgDesign)
+```
+
+### Creating Experimental Design  
+When creating an incomplete block design for Max Diff the rules of thumb are as follows:  
+    +  Ideal Number of Questions = 3 * Alternatives / Alternatives Per Quesion  
+    + Alternatives per question = 3 to 6 (4 or 5 ideal)  
+    
+```{r}
+alternatives = 8 # what are the different products/attributes/treatments that need to be shown?
+block_size = 4 # alternatives per question
+blocks = (3 * alternatives) / block_size # number of questions
+```
+
+Using the `AlgDesign` package - we will create an incomplete block design. AlgDesign - will create a block design based on the parameters you pass - whether it is balanced or not. There is an element of randomness with AlgDesign, so you need to set the seed for reproducibility. 
+
+```{r}
+set.seed(2)
+BIB = optBlock(~., withinData = factor(1:alternatives), blocksizes = rep(block_size, blocks))
+```
+
+BIB returns a few things:  
+    + diagonality which is an element of assessing how good the design is (but questionable how useful it is)  
+    + Blocks: which is each block as a different item in a list  
+    + Design: The order in which the alternatives will appear in your design  
+    
+Unfortunately, BIB doesn't return the design in the order we would personally prefer to review the design. Here is some code to easily modify it!
+
+```{r}
+block_design_matrix = matrix(data = NA, nrow = block_size, ncol = blocks)
+n = length(BIB$Blocks)
+
+for(i in 1:n){
+  temp = BIB$Blocks[[i]][,1]
+  block_design_matrix[,i] = temp
+}
+
+block_design_matrix = t(block_design_matrix)
+block_design_matrix # Experimental Design 
+```
+
+
+### Creating Count Matrix Based off of Experimental Design
+One of the most important assessments of a design is to understand how many times one alternative appears with another alternative. For example, in the above experimental design alternative 1 shows up with alternative 2 - 2 different times. It can be pretty manual to calculate this - so below is some code to create a "count matrix". 
+
+
+```{r}
+# Code: Rep range is the number of rows in the experimental design, each is the number of columns
+crossprod(table(rep(1:6, each = 4), unlist(BIB$design)))
+```
+
+We can see in the above that this isn't a particularly balanced design. 
+    + Alternative 3 never appears with Alternative 7. (Bad)
+    + All the alternatives appear at least three times - via the diagnol (Good)
+    + Some alternatives appear with the others only 1 or 2 times (Bad)
+    
+Say we wanted to work with this design anyway! For any analysis using mlogit - you will need to convert the `block_design_matrix` into a matrix with dummy variables. Below is some code to do so!  
+  
+### Turning Experimental Design into Dummy Variables for Analysis 
+```{r}
+experimental_design = as.vector(t(block_design_matrix))
+sets = rep(1:8, each = 3)
+```
+
+
+```{r}
+profiles = model.matrix(~ experimental_design + sets)[, -1] # Removes the intercept
+profiles = as.character(profiles) # Convert to characters for the following code
+profiles_coded = fastDummies::dummy_cols(profiles)
+profiles_coded = apply(profiles_coded, 2, as.numeric)
+```
+
+```{r}
+head(profiles_coded)
+```
+
+This is almost what we want! However, as a reminder max diff designs require 1 for what is "most" and -1 for what is "least". The design above does not have any negatives ones. This will be resolved next. 
+
+
+```{r}
+rows = seq(1, 48, by = 4) # Because each new block starts every 4 rows
+profiles_coded_final = matrix(ncol = 9, nrow = 1) 
+
+for(i in rows){
+  temp = profiles_coded[i:(i+3), ]
+  temp = rbind(temp, -temp) # combining the same set with positive version and negative version 
+  
+  profiles_coded_final = rbind(profiles_coded_final, temp)
+  
+  }
+
+profiles_coded_final = profiles_coded_final[-1, ]
+```
+
+
+```{r}
+head(profiles_coded_final)
+```
